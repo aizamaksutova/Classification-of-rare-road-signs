@@ -32,15 +32,15 @@ CUDA = 0
 
 class DatasetRTSD(Dataset):
     """
-    Класс для чтения и хранения датасета.
-    :param root_folders: список путей до папок с данными
-    :param path_to_classes_json: путь до classes.json
+    class for reading and 
+    :param root_folders: 
+    :param path_to_classes_json: 
     """
     def __init__(self, root_folders, path_to_classes_json) -> None:
         super(DatasetRTSD, self).__init__()
         self.classes, self.class_to_idx = self.get_classes(path_to_classes_json)
-        self.samples = []  # список пар (путь до картинки, индекс класса)
-        self.classes_to_samples = {}  # словарь из списков картинок для каждого класса
+        self.samples = []  # tuple (path to image, index of cluster)
+        self.classes_to_samples = {}  # dict of images
         self.transform = A.Compose([
             A.Resize(224, 224),
             # A.CenterCrop(224),
@@ -63,7 +63,7 @@ class DatasetRTSD(Dataset):
 
     def __getitem__(self, index):
         """
-        Возвращает тройку: тензор с картинкой, путь до файла, номер класса файла (если нет разметки, то "-1").
+        Returns triple (tensor with image, path to file, number of class file [if there is no label, then -1])
         """
         image_path, class_idx = self.samples[index]
         img = np.array(Image.open(image_path).convert('RGB'))
@@ -76,8 +76,8 @@ class DatasetRTSD(Dataset):
     @staticmethod
     def get_classes(path_to_classes_json):
         """
-        Считывает из classes.json информацию о классах.
-        :param path_to_classes_json: путь до classes.json
+        Reads the info from classes.json the information about classes
+        :param path_to_classes_json:
         """
         class_to_idx = {}
         classes = []
@@ -90,16 +90,16 @@ class DatasetRTSD(Dataset):
 
 class TestData(Dataset):
     """
-    Класс для чтения и хранения тестового датасета.
-    :param root: путь до папки с картинками знаков
-    :param path_to_classes_json: путь до classes.json
-    :param annotations_file: путь до .csv-файла с аннотациями (опциональный)
+    A class to read and store the test dataset.
+    :param root: path to the folder with pictures of characters
+    :param path_to_classes_json: path to classes.json
+    :param annotations_file: path to .csv file with annotations (optional)
     """
     def __init__(self, root, path_to_classes_json, annotations_file=None):
         super(TestData, self).__init__()
         self.classes, self.class_to_idx = DatasetRTSD.get_classes(path_to_classes_json)
         self.root = root
-        self.samples = []  # список путей до картинок
+        self.samples = []  # paths to images
 
         for image in os.listdir(self.root):
             self.samples.append(image)
@@ -113,7 +113,7 @@ class TestData(Dataset):
             ToTensorV2()
         ])
 
-        self.targets = None  # targets[путь до картинки] = индекс класса
+        self.targets = None 
         if annotations_file is not None:
             self.targets = {}
             with open(annotations_file, newline='') as csvfile:
@@ -124,7 +124,7 @@ class TestData(Dataset):
 
     def __getitem__(self, index):
         """
-        Возвращает тройку: тензор с картинкой, путь до файла, номер класса файла (если нет разметки, то "-1").
+        Returns a triple: image tensor, file path, file class number (if no markup, "-1").
         """
         image_path = self.samples[index]
         img = np.array(Image.open(os.path.join(self.root, image_path)).convert('RGB'))
@@ -140,9 +140,9 @@ class TestData(Dataset):
 
 class CustomNetwork(torch.nn.Module):
     """
-    Класс, реализующий нейросеть для классификации.
-    :param features_criterion: loss-функция на признаки, извлекаемые нейросетью перед классификацией (None когда нет такого лосса)
-    :param internal_features: внутреннее число признаков
+    A class that implements a neural network for classification.
+    :param features_criterion: loss-function on the features extracted by the neural network before classification (None when there is no such loss)
+    :param internal_features: internal number of features
     """
     def __init__(self, features_criterion=None, internal_features=1024):
         super().__init__()
@@ -166,8 +166,8 @@ class CustomNetwork(torch.nn.Module):
 
     def predict(self, x):
         """
-        Функция для предсказания классов-ответов. Возвращает np-массив с индексами классов.
-        :param x: батч с картинками
+        Function for predicting class-response. Returns an np array with class indices.
+        :param x: batch with images
         """
         logits = self.model(x)
         return logits.argmax(dim=1)
@@ -217,7 +217,7 @@ def full_train(model, optimizer, scheduler, criterion, train_loader, test_loader
 
 
 def train_simple_classifier():
-    """Функция для обучения простого классификатора на исходных данных."""
+    """A function for training a simple classifier on raw data.""""
     print(f'using CUDA:{CUDA}')
     num_epochs = 3
 
@@ -244,10 +244,10 @@ def train_simple_classifier():
 
 def apply_classifier(model, test_folder, path_to_classes_json):
     """
-    Функция, которая применяет модель и получает её предсказания.
-    :param model: модель, которую нужно протестировать
-    :param test_folder: путь до папки с тестовыми данными
-    :param path_to_classes_json: путь до файла с информацией о классах classes.json
+    A function that applies a model and gets its predictions.
+    :param model: the model to be tested
+    :param test_folder: path to the folder with the test data
+    :param path_to_classes_json: path to the file with class information classes.json
     """
     test_dataset = TestData(root=test_folder,
                             path_to_classes_json=path_to_classes_json)
@@ -287,11 +287,11 @@ def calc_metric(y_true, y_pred, cur_type, class_name_to_type):
 
 def test_classifier(model, test_folder, path_to_classes_json, annotations_file):
     """
-    Функция для тестирования качества модели.
-    Возвращает точность на всех знаках, Recall на редких знаках и Recall на частых знаках.
-    :param model: модель, которую нужно протестировать
-    :param test_folder: путь до папки с тестовыми данными
-    :param annotations_file: путь до .csv-файла с аннотациями (опциональный)
+    Function for testing the quality of a model.
+    Returns Precision on all signs, Recall on rare signs and Recall on frequent signs.
+    :param model: model to be tested
+    :param test_folder: path to the folder with test data
+    :param annotations_file: path to .csv file with annotations (optional)
     """
     output = apply_classifier(model, test_folder, path_to_classes_json)
     output = {elem['filename']: elem['class'] for elem in output}
@@ -376,8 +376,8 @@ def fuse_with_background(sign_img, sign_mask, background_path):
 
 def generate_one_icon(args):
     """
-    Функция, генерирующая синтетические данные для одного класса.
-    :param args: Это список параметров: [путь до файла с иконкой, путь до выходной папки, путь до папки с фонами, число примеров каждого класса]
+    A function that generates synthetic data for a single class.
+    :param args: This is a list of parameters: [path to icon file, path to output folder, path to backgrounds folder, number of examples of each class]
     """
     icon_path, output_folder, backgrounds_folder_path, sample_quantity = args
 
@@ -396,14 +396,14 @@ def generate_one_icon(args):
 
 def generate_all_data(output_folder, icons_path, background_path, samples_per_class=1000):
     """
-    Функция, генерирующая синтетические данные.
-    Эта функция запускает пул параллельно работающих процессов, каждый из которых будет генерировать иконку своего типа.
-    Это необходимо, так как процесс генерации очень долгий.
-    Каждый процесс работает в функции generate_one_icon.
-    :param output_folder: Путь до выходной директории
-    :param icons_path: Путь до директории с иконками
-    :param background_path: Путь до директории с картинками фона
-    :param samples_per_class: Количество примеров каждого класса, которые надо сгенерировать
+    A function that generates synthetic data.
+    This function starts a pool of parallel running processes, each of which will generate an icon of a different type.
+    This is necessary because the generation process is very long.
+    Each process runs in the function generate_one_icon.
+    :param output_folder: Path to the output directory
+    :param icons_path: Path to the icon directory
+    :param background_path: Path to the directory with background images
+    :param samples_per_class: Number of samples of each class to generate
     """
     with ProcessPoolExecutor(8) as executor:
         params = [[os.path.join(icons_path, icon_file), output_folder, background_path, samples_per_class]
@@ -412,7 +412,7 @@ def generate_all_data(output_folder, icons_path, background_path, samples_per_cl
 
 
 def train_synt_classifier():
-    """Функция для обучения простого классификатора на смеси исходных и ситетических данных."""
+    """A function for training a simple classifier on a mixture of raw and sythetic data.""""
 
     print(f'using CUDA:{CUDA}')
     num_epochs = 1
@@ -440,7 +440,7 @@ def train_synt_classifier():
 
 class FeaturesLoss(torch.nn.Module):
     """
-    Класс для вычисления loss-функции на признаки предпоследнего слоя нейросети.
+    A class for computing a loss function on the features of the penultimate layer of a neural network.
     """
     def __init__(self, margin):
         super(FeaturesLoss, self).__init__()
@@ -458,10 +458,10 @@ class FeaturesLoss(torch.nn.Module):
 
 class CustomBatchSampler(torch.utils.data.sampler.Sampler[typing.List[int]]):
     """
-    Класс для семплирования батчей с контролируемым числом классов и примеров каждого класса.
-    :param data_source: Это датасет RTSD
-    :param elems_per_class: Число элементов каждого класса
-    :param classes_per_batch: Количество различных классов в одном батче
+    A class to sample batches with a controlled number of classes and examples of each class.
+    :param data_source: This is the RTSD dataset
+    :param elems_per_class: Number of elements of each class
+    :param classes_per_batch: The number of different classes in a single batches
     """
     def __init__(self, data_source, elems_per_class, classes_per_batch):
         self.training_data = data_source.samples
@@ -484,75 +484,3 @@ class CustomBatchSampler(torch.utils.data.sampler.Sampler[typing.List[int]]):
 
     def __len__(self):
         return self.batch_size
-
-
-class ModelWithHead:
-    """
-    Класс, реализующий модель с головой из kNN.
-    :param n_neighbors: Количество соседей в методе ближайших соседей
-    """
-    def __init__(self, n_neighbors):
-        ### YOUR CODE HERE
-        pass
-
-    def load_nn(self, nn_weights_path):
-        """
-        Функция, загружающая веса обученной нейросети.
-        :param nn_weights_path: Это путь до весов обученной нейросети с улучшенными признаками на предпоследнем слое
-        """
-        ### YOUR CODE HERE
-        pass
-
-    def load_head(self, knn_path):
-        """
-        Функция, загружающая веса kNN (с помощью pickle).
-        :param knn_path: Путь, откуда надо прочитать веса kNN
-        """
-        ### YOUR CODE HERE
-        pass
-
-    def predict(self, imgs):
-        """
-        Функция для предсказания классов-ответов. Возвращает np-массив с индексами классов.
-        :param imgs: батч с картинками
-        """
-        # features, model_pred = ### YOUR CODE HERE - предсказание нейросетевой модели
-        # features = features / np.linalg.norm(features, axis=1)[:, None]
-        # knn_pred = ... ### YOUR CODE HERE - предсказание kNN на features
-        # return knn_pred
-        pass
-
-
-class IndexSampler(torch.utils.data.sampler.Sampler[int]):
-    """
-    Класс для семплирования батчей с картинками индекса.
-    :param data_source: Это датасет RTSD с синтетическими примерами
-    :param examples_per_class: Число элементов каждого класса, которые должны попасть в индекс
-    """
-    def __init__(self, data_source, examples_per_class) -> None:
-        self.training_data = data_source.samples
-        self.class_count = len(data_source.classes)
-        self.classes_to_samples = data_source.classes_to_samples
-        self.examples_per_class = examples_per_class
-        self.batch_size = examples_per_class * self.class_count
-
-    def __iter__(self):
-        samples = []
-        for clas_idx in range(self.class_count):
-            samples_idx = np.random.choice(self.classes_to_samples[clas_idx],
-                                           size=self.examples_per_class)
-            samples += list(samples_idx)
-        return iter(samples)
-
-    def __len__(self):
-        return self.batch_size
-
-
-def train_head(nn_weights_path, examples_per_class = 20):
-    """
-    Функция для обучения kNN-головы классификатора.
-    :param nn_weights_path: Это путь до весов обученной нейросети с улучшенными признаками на предпоследнем слое
-    :param examples_per_class: Число элементов каждого класса, которые должны попасть в индекс
-    """
-    ### YOUR CODE HERE
-    pass
